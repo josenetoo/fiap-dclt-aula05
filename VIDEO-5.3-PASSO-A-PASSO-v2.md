@@ -342,17 +342,19 @@ terraform apply
 
 ---
 
-## � Parte 4: Pipeline CI/CD com Módulos
+## 🚀 Parte 4: Pipeline CI/CD com Módulos
 
 ```mermaid
 flowchart LR
-    A[Push] --> B[Validate Modules]
-    B --> C[Plan com Módulos]
-    C --> D[Apply com Módulos]
+    A[Push modules] --> B[Validate Modules]
+    B --> C[Plan]
+    C --> D[Apply]
     D --> E[Infraestrutura]
 ```
 
 ### Passo 8: Criar Pipeline para Módulos
+
+> **Arquivo**: `.github/workflows/terraform-modules.yml`
 
 **Linux/macOS:**
 ```bash
@@ -364,7 +366,7 @@ on:
     branches: [ modules ]
 
 jobs:
-  terraform:
+  deploy-modules:
     name: 🏗️ Deploy com Módulos
     runs-on: ubuntu-latest
     
@@ -405,7 +407,6 @@ jobs:
         run: terraform plan -out=tfplan
       
       - name: 🚀 Terraform Apply
-        if: github.ref == 'refs/heads/main'
         working-directory: terraform/environments/development
         run: terraform apply -auto-approve tfplan
       
@@ -421,14 +422,28 @@ EOF
 
 **Windows (PowerShell):**
 ```powershell
-# Criar workflow (copiar conteúdo acima)
-New-Item -ItemType File -Path ".github/workflows/terraform-modules.yml"
+# Criar workflow (copiar conteúdo YAML acima manualmente)
+notepad .github/workflows/terraform-modules.yml
 ```
 
-### Passo 9: Testar Pipeline com Módulos
+### Passo 9: Subir Workflow para Main (PRIMEIRO!)
+
+> ⚠️ **IMPORTANTE**: O workflow precisa estar na branch `main` para o GitHub Actions reconhecer!
 
 ```bash
-# Criar branch modules
+# Garantir que está na main
+git checkout main
+
+# Adicionar o workflow
+git add .github/workflows/terraform-modules.yml
+git commit -m "ci: add modules pipeline"
+git push origin main
+```
+
+### Passo 10: Testar Pipeline com Módulos
+
+```bash
+# Criar branch modules a partir da main
 git checkout main
 git checkout -b modules
 
@@ -444,14 +459,10 @@ git push origin modules
 # https://github.com/SEU_USUARIO/SEU_REPO/actions
 ```
 
-### Passo 10: Verificar Resultado
+### Passo 11: Verificar Resultado
 
 ```bash
-# Ver outputs da infraestrutura
-cd terraform/environments/development
-terraform output
-
-# Verificar VPC criada pelo módulo
+# Verificar VPC criada
 aws ec2 describe-vpcs \
   --filters "Name=tag:Project,Values=fiap-cicd" \
   --query "Vpcs[*].{ID:VpcId,CIDR:CidrBlock}" \
