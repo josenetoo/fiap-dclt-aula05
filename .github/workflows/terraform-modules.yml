@@ -1,0 +1,58 @@
+name: 🧩 Terraform com Módulos
+
+on:
+  push:
+    branches: [ modules ]
+
+jobs:
+  deploy-modules:
+    name: 🏗️ Deploy com Módulos
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+      
+      - name: 🔑 Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+      
+      - name: ✅ Validate Modules
+        run: |
+          echo "🔍 Validando módulos..."
+          for module in terraform/modules/*/; do
+            echo "Validando $module"
+            cd $module
+            terraform init -backend=false
+            terraform validate
+            cd - > /dev/null
+          done
+      
+      - name: ⚙️ Terraform Init
+        working-directory: terraform/environments/modules
+        run: terraform init
+      
+      - name: 📋 Terraform Plan
+        working-directory: terraform/environments/modules
+        run: terraform plan -out=tfplan
+      
+      - name: 🚀 Terraform Apply
+        working-directory: terraform/environments/modules
+        run: terraform apply -auto-approve tfplan
+      
+      - name: 📊 Summary
+        working-directory: terraform/environments/modules
+        run: |
+          echo "## 🧩 Infraestrutura com Módulos" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          terraform output >> $GITHUB_STEP_SUMMARY || echo "No outputs" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
