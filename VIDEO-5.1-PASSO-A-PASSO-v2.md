@@ -207,36 +207,18 @@ sequenceDiagram
     Git-->>Dev: Deployment success
 ```
 
-### Passo 7: Preparar Backend (Uma vez)
+### Passo 7: Criar Workflow CI/CD
 
 **Linux/macOS:**
 ```bash
-# Criar diretório
+# Criar diretório e arquivo workflow
 mkdir -p .github/workflows
 
-# Criar arquivo workflow
 cat > .github/workflows/terraform-ci.yml << 'EOF'
-```
-
-**Windows (PowerShell):**
-```powershell
-# Criar diretório
-New-Item -ItemType Directory -Force -Path ".github/workflows"
-
-# Criar arquivo workflow (copiar conteúdo abaixo)
-New-Item -ItemType File -Path ".github/workflows/terraform-ci.yml"
-```
-
-**Conteúdo do arquivo `.github/workflows/terraform-ci.yml`:**
-
-```yaml
 name: 🏗️ Terraform CI/CD
 
 on:
   push:
-    branches: [ main ]
-    paths: [ 'terraform/**' ]
-  pull_request:
     branches: [ main ]
     paths: [ 'terraform/**' ]
 
@@ -246,9 +228,8 @@ env:
   WORKING_DIR: terraform/environments/development
 
 jobs:
-  # Job 1: Validação (sempre executa)
-  terraform-validate:
-    name: ✅ Validate
+  terraform-deploy:
+    name: 🚀 Deploy
     runs-on: ubuntu-latest
     
     steps:
@@ -259,96 +240,34 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
+      
+      - name: 🔑 Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
       
       - name: 🎯 Format Check
         working-directory: ${{ env.WORKING_DIR }}
         run: terraform fmt -check -recursive
       
-      - name: ⚙️ Init (no backend)
+      - name: ⚙️ Init
         working-directory: ${{ env.WORKING_DIR }}
-        run: terraform init -backend=false
+        run: terraform init
       
       - name: ✅ Validate
         working-directory: ${{ env.WORKING_DIR }}
         run: terraform validate
-
-  # Job 2: Plan (apenas PRs)
-  terraform-plan:
-    name: 📋 Plan
-    runs-on: ubuntu-latest
-    needs: terraform-validate
-    if: github.event_name == 'pull_request'
-    
-    steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@v4
-      
-      - name: 🔧 Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-      
-      - name: 🔑 Configure AWS
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: ${{ env.AWS_REGION }}
-      
-      - name: ⚙️ Init
-        working-directory: ${{ env.WORKING_DIR }}
-        run: terraform init
       
       - name: 📋 Plan
         working-directory: ${{ env.WORKING_DIR }}
-        run: terraform plan -no-color | tee plan.txt
-      
-      - name: 📊 Comment PR
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const plan = fs.readFileSync('${{ env.WORKING_DIR }}/plan.txt', 'utf8');
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `## 📋 Terraform Plan\n\`\`\`terraform\n${plan}\n\`\`\``
-            });
-
-  # Job 3: Apply (apenas main branch)
-  terraform-apply:
-    name: 🚀 Apply
-    runs-on: ubuntu-latest
-    needs: terraform-validate
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment: development
-    
-    steps:
-      - name: 📥 Checkout
-        uses: actions/checkout@v4
-      
-      - name: 🔧 Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-      
-      - name: 🔑 Configure AWS
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: ${{ env.AWS_REGION }}
-      
-      - name: ⚙️ Init
-        working-directory: ${{ env.WORKING_DIR }}
-        run: terraform init
+        run: terraform plan -out=tfplan
       
       - name: 🚀 Apply
         working-directory: ${{ env.WORKING_DIR }}
-        run: terraform apply -auto-approve
+        run: terraform apply -auto-approve tfplan
       
       - name: 📊 Output
         working-directory: ${{ env.WORKING_DIR }}
@@ -358,6 +277,15 @@ jobs:
           terraform output >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 EOF
+```
+
+**Windows (PowerShell):**
+```powershell
+# Criar diretório
+New-Item -ItemType Directory -Force -Path ".github/workflows"
+
+# Criar arquivo (copiar conteúdo YAML acima manualmente)
+notepad .github/workflows/terraform-ci.yml
 ```
 
 ---
