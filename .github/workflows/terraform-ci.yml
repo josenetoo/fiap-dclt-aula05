@@ -1,0 +1,61 @@
+name: 🏗️ Terraform CI/CD
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ 'terraform/**' ]
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: 1.6.0
+  WORKING_DIR: terraform/environments/development
+
+jobs:
+  terraform-deploy:
+    name: 🚀 Deploy
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+      
+      - name: 🔧 Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      
+      - name: 🔑 Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: 🎯 Format Check
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform fmt -check -recursive
+      
+      - name: ⚙️ Init
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform init
+      
+      - name: ✅ Validate
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform validate
+      
+      - name: 📋 Plan
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform plan -out=tfplan
+      
+      - name: 🚀 Apply
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform apply -auto-approve tfplan
+      
+      - name: 📊 Output
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          echo "## 🏗️ Infrastructure Deployed" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          terraform output >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
